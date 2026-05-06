@@ -8,7 +8,8 @@ var (
 	Date    = "unknown"
 )
 
-// String returns a human-readable build identifier.
+// String returns a human-readable build identifier combining Version, Commit
+// and Date in the form "Version (Commit, Date)".
 func String() string {
 	return Version + " (" + Commit + ", " + Date + ")"
 }

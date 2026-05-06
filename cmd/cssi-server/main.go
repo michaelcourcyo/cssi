@@ -12,6 +12,8 @@ import (
 	"github.com/michaelcourcyo/cssi/pkg/server"
 )
 
+// main runs the CSSI storage server.
+// It parses command-line flags for the API listen address, LVM volume group name, export root directory, and a version flag; if the version flag is set it prints the binary version and exits. It constructs the server from the parsed flags, starts it, and exits with status 1 if the server returns an error.
 func main() {
 	var (
 		listen      = flag.String("listen", ":9000", "Address to listen on for the CSSI API")

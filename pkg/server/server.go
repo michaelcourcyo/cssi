@@ -27,7 +27,7 @@ type Server struct {
 	cfg Config
 }
 
-// New returns a Server configured with cfg.
+// New creates a Server configured with the given Config.
 func New(cfg Config) *Server {
 	return &Server{cfg: cfg}
 }

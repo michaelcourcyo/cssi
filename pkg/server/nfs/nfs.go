@@ -9,5 +9,6 @@ type Exporter struct {
 	Root string
 }
 
-// New returns an Exporter that places exports under root.
+// New creates an Exporter rooted at the provided directory.
+// The Exporter places NFS exports under the specified root.
 func New(root string) *Exporter { return &Exporter{Root: root} }

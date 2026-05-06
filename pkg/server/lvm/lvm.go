@@ -7,5 +7,6 @@ type Manager struct {
 	VG string
 }
 
-// New returns a Manager bound to the named Volume Group.
+// New creates a Manager bound to the named volume group.
+// The returned Manager's VG field is set to the provided vg.
 func New(vg string) *Manager { return &Manager{VG: vg} }

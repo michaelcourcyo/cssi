@@ -23,7 +23,7 @@ type Driver struct {
 	cfg Config
 }
 
-// New returns a Driver configured with cfg.
+// New creates a Driver with the provided configuration.
 func New(cfg Config) *Driver {
 	return &Driver{cfg: cfg}
 }

@@ -9,7 +9,8 @@ type ControllerService struct {
 }
 
 // NewControllerService returns a ControllerService that talks to the CSSI
-// server reachable at serverAddr.
+// NewControllerService creates a ControllerService configured with the provided CSSI server address.
+// The returned ControllerService forwards controller lifecycle calls (volumes and snapshots) to that server.
 func NewControllerService(serverAddr string) *ControllerService {
 	return &ControllerService{serverAddr: serverAddr}
 }
