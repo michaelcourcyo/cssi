@@ -7,5 +7,6 @@ type Client struct {
 	addr string
 }
 
-// New returns a Client targeting the server at addr (host:port).
+// New creates a Client that targets the server at addr (host:port).
+// No validation or normalization is performed on addr; it is used as provided.
 func New(addr string) *Client { return &Client{addr: addr} }
