@@ -9,7 +9,7 @@ type ControllerService struct {
 }
 
 // NewControllerService returns a ControllerService that talks to the CSSI
-// server reachable at serverAddr.
+// The serverAddr parameter is the network address of the CSSI server that owns the LVM volume group and NFS exports; no validation is performed.
 func NewControllerService(serverAddr string) *ControllerService {
 	return &ControllerService{serverAddr: serverAddr}
 }

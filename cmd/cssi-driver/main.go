@@ -11,6 +11,12 @@ import (
 	"github.com/michaelcourcyo/cssi/pkg/driver"
 )
 
+// main is the entrypoint for the cssi-driver binary.
+// It parses command-line flags (--endpoint, --node-id, --server-address, --version).
+// If --version is set it prints "cssi-driver <version>" and exits.
+// It requires --node-id and --server-address and will terminate if they are missing.
+// It constructs a driver with the provided configuration and runs it; if the driver
+// returns an error the process exits with status 1.
 func main() {
 	var (
 		endpoint    = flag.String("endpoint", "unix:///csi/csi.sock", "CSI gRPC endpoint")

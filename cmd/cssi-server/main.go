@@ -12,6 +12,9 @@ import (
 	"github.com/michaelcourcyo/cssi/pkg/server"
 )
 
+// main parses command-line flags, optionally prints the binary version, and starts the CSSI API server.
+// It constructs a server.Config from the flags (listen address, LVM volume group name, and export root),
+// runs the server, and logs and exits with status 1 if the server returns an error.
 func main() {
 	var (
 		listen      = flag.String("listen", ":9000", "Address to listen on for the CSSI API")

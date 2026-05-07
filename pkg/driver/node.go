@@ -8,7 +8,8 @@ type NodeService struct {
 	nodeID string
 }
 
-// NewNodeService returns a NodeService for the given node ID.
+// NewNodeService creates a NodeService for the specified node ID.
+// The returned NodeService has its nodeID field set to the provided value.
 func NewNodeService(nodeID string) *NodeService {
 	return &NodeService{nodeID: nodeID}
 }
