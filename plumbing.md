@@ -65,7 +65,7 @@ pod info should be passed on mount, etc.
 
 ### 1.4 Registration diagram
 
-```
+```text
 [ kube-apiserver ]
        |
        | (watches PVC, VolumeAttachment, ...)
@@ -123,7 +123,7 @@ StorageClass and finds `provisioner: cssi.mcourcy.com`. Since this is
 not an in-tree provisioner, the PV controller does not call our driver.
 Instead it stamps an annotation on the PVC:
 
-```
+```yaml
 volume.kubernetes.io/storage-provisioner: cssi.mcourcy.com
 ```
 
@@ -143,7 +143,7 @@ that annotation. When it sees `my-data`:
     tells the provisioner which node was chosen.
 - It calls the driver over the local Unix socket:
 
-```
+```go
 CreateVolume(CreateVolumeRequest{
   Name: "pvc-<uid>",                 // deterministic name (idempotency key)
   CapacityRange: { RequiredBytes: 10Gi },
@@ -204,7 +204,7 @@ NodePublishVolume on the node where the Pod lands).
 
 ### 2.3 Sequence
 
-```
+```text
 user           apiserver        PV-controller     external-provisioner    cssi driver         backend
  | create PVC --->|
  |              | stores PVC
@@ -297,7 +297,7 @@ There is no `--driver-name` flag. The mechanism is:
 
 On startup, `external-provisioner` calls the driver's Identity service:
 
-```
+```text
 GetPluginInfo() -> { Name: "cssi.mcourcy.com", VendorVersion: "..." }
 ```
 
@@ -305,7 +305,7 @@ That `Name` is the value our `IdentityService.GetPluginInfo` must
 return. From that point on, the sidecar's PVC watch only acts on PVCs
 whose annotation matches:
 
-```
+```text
 metadata.annotations["volume.kubernetes.io/storage-provisioner"]      == "cssi.mcourcy.com"
    OR
 metadata.annotations["volume.beta.kubernetes.io/storage-provisioner"] == "cssi.mcourcy.com"
@@ -320,7 +320,7 @@ a PVC referencing a StorageClass whose `provisioner:` field is not
 in-tree, it copies that exact value onto the PVC as the
 `storage-provisioner` annotation. So the chain is:
 
-```
+```text
 StorageClass.provisioner: cssi.mcourcy.com
         |
         v  (PV controller copies this onto pending PVCs)
