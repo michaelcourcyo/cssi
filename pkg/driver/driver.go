@@ -6,7 +6,10 @@
 //   - node.go       : CSI Node service (NodePublishVolume mounts the NFS export)
 package driver
 
-import "log"
+import (
+	"errors"
+	"log"
+)
 
 // Config carries the runtime parameters for the CSI driver.
 type Config struct {
@@ -34,5 +37,5 @@ func (d *Driver) Run() error {
 		d.cfg.Endpoint, d.cfg.NodeID, d.cfg.ServerAddr)
 	// TODO: register Identity, Controller, and Node services on a gRPC server
 	// listening at d.cfg.Endpoint, and Serve().
-	return nil
+	return errors.New("cssi-driver: gRPC server not implemented")
 }

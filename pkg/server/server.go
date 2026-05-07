@@ -9,7 +9,10 @@
 //  4. Adds an NFS export and returns its endpoint to the caller.
 package server
 
-import "log"
+import (
+	"errors"
+	"log"
+)
 
 // Config carries the runtime parameters for the CSSI server.
 type Config struct {
@@ -37,5 +40,5 @@ func (s *Server) Run() error {
 	log.Printf("cssi-server starting: listen=%s vg=%s exportRoot=%s",
 		s.cfg.ListenAddr, s.cfg.VGName, s.cfg.ExportRoot)
 	// TODO: open API listener, wire LVM and NFS managers, and Serve().
-	return nil
+	return errors.New("cssi-server: API listener not implemented")
 }
