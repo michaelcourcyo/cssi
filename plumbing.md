@@ -11,6 +11,7 @@ to them as the implementation grows.
 - [3. The standard sidecars](#3-the-standard-sidecars)
 - [4. How `external-provisioner` finds our PVCs](#4-how-external-provisioner-finds-our-pvcs)
 - [5. Implications for the CSSI codebase](#5-implications-for-the-cssi-codebase)
+- [6. `ControllerPublishVolume` vs `NodeStageVolume`](#6-controllerpublishvolume-vs-nodestagevolume)
 
 ---
 
@@ -369,6 +370,178 @@ args:
   for mounting the NFS export from the CSSI server into the pod.
 
 - The deploy manifests in [deploy/kubernetes/](deploy/kubernetes/) need
-  to bundle the standard sidecars (`csi-provisioner`, `csi-attacher`
-  as needed, `node-driver-registrar`) alongside the cssi driver
-  container, sharing the CSI Unix socket via an `emptyDir`.
+  to bundle the standard sidecars listed in 5.1 alongside the cssi
+  driver container, sharing the CSI Unix socket via an `emptyDir`.
+
+### 5.1 Sidecars we actually deploy
+
+CSSI is NFS-backed: any node that can reach the CSSI server's NFS export
+can mount it directly, so there is **no attach step**. We set
+`CSIDriver.spec.attachRequired: false`, which makes Kubernetes skip
+creating `VolumeAttachment` objects, which means `external-attacher` has
+nothing to watch and is not deployed.
+
+| Sidecar                  | Pod                     | Required?    | Why                                                                                       |
+|--------------------------|-------------------------|--------------|-------------------------------------------------------------------------------------------|
+| `external-provisioner`   | controller Deployment   | **yes**      | translates PVC events into `CreateVolume` / `DeleteVolume`                                |
+| `external-attacher`      | -                       | **no**       | NFS has no attach step (`attachRequired: false`); no `VolumeAttachment` objects are made  |
+| `external-resizer`       | controller Deployment   | later        | only when we implement `ControllerExpandVolume`                                           |
+| `external-snapshotter`   | controller Deployment   | later        | only when we implement `CreateSnapshot` / `DeleteSnapshot`                                |
+| `node-driver-registrar`  | node DaemonSet          | **yes**      | advertises the driver's Unix socket to kubelet on each node                               |
+| `livenessprobe`          | both                    | optional     | exposes a health endpoint backed by the driver's `Probe` RPC                              |
+
+Minimum viable cssi: `csi-provisioner` in the controller pod and
+`node-driver-registrar` in the node DaemonSet. Add the others as
+features land.
+
+### 5.2 Volume lifecycle: RPC by RPC
+
+End-to-end mapping from "user creates a Pod that references a PVC" to
+"Pod is mounted and running", showing which container in our deployment
+makes each gRPC call and which file in our repo answers it.
+
+| #  | RPC                          | Plane       | Caller                  | Our handler                                                  |
+|----|------------------------------|-------------|-------------------------|--------------------------------------------------------------|
+| 1  | `CreateVolume`               | controller  | `external-provisioner`  | [pkg/driver/controller.go](pkg/driver/controller.go)         |
+| 2  | `ControllerPublishVolume`    | controller  | `external-attacher`     | **skipped** (`attachRequired: false`)                        |
+| 3  | `NodeStageVolume`            | node        | kubelet                 | [pkg/driver/node.go](pkg/driver/node.go) (no-op or stage-mount the NFS export to a global path) |
+| 4  | `NodePublishVolume`          | node        | kubelet                 | [pkg/driver/node.go](pkg/driver/node.go) (mount/bind-mount into the Pod's target dir) |
+| 5  | `NodeUnpublishVolume`        | node        | kubelet                 | [pkg/driver/node.go](pkg/driver/node.go)                     |
+| 6  | `NodeUnstageVolume`          | node        | kubelet                 | [pkg/driver/node.go](pkg/driver/node.go)                     |
+| 7  | `ControllerUnpublishVolume`  | controller  | `external-attacher`     | **skipped**                                                  |
+| 8  | `DeleteVolume`               | controller  | `external-provisioner`  | [pkg/driver/controller.go](pkg/driver/controller.go)         |
+
+Steps 1, 2, 7, 8 happen in the **controller Deployment pod** (driver +
+sidecars). Steps 3-6 happen in the **node DaemonSet pod** on whichever
+node the consuming Pod is scheduled to. For CSSI specifically, steps 2
+and 7 are no-ops because NFS does not require an attach phase.
+
+---
+
+## 6. `ControllerPublishVolume` vs `NodeStageVolume`
+
+These two RPCs both fall between provisioning and the Pod actually
+running, and the names are easy to confuse. They live in **different
+planes**, run on **different machines**, and answer **different
+questions**. The clearest way to keep them apart is to think in three
+layers:
+
+| Layer                     | Question it answers                                     | Where it runs                                |
+|---------------------------|---------------------------------------------------------|----------------------------------------------|
+| `ControllerPublishVolume` | Can this volume be **reached** from that node?          | Controller plane - anywhere in the cluster   |
+| `NodeStageVolume`         | Mount the volume **once on this node**.                 | Node plane - on the target node              |
+| `NodePublishVolume`       | Bind-mount the staged volume into **this specific Pod**.| Node plane - same node                       |
+
+### 6.1 Canonical example: an AWS EBS volume
+
+Imagine a Pod scheduled to node `i-123` whose PVC is backed by EBS
+volume `vol-abc`.
+
+**Step 1 - `ControllerPublishVolume` (cluster level, AWS API)**
+
+The CSI driver's controller container runs:
+
+```go
+ec2.AttachVolume(VolumeId: "vol-abc", InstanceId: "i-123", Device: "/dev/xvdf")
+```
+
+This is an API call to AWS. It tells the EC2 control plane to wire the
+EBS block device to that instance. After this completes, the kernel on
+`i-123` newly sees a device at `/dev/xvdf` - but nothing is mounted yet.
+There is no filesystem visible. No process can read from the volume.
+
+The driver returns a `publish_context` like
+`{ "device_name": "/dev/xvdf" }`; Kubernetes hands this map down to the
+node side in step 2.
+
+This step does NOT touch the node directly. It is a control-plane
+decision: "this disk is now attached to that machine."
+
+**Step 2 - `NodeStageVolume` (node level, once per node)**
+
+Kubelet on `i-123` then calls the driver's node container:
+
+```go
+// pseudo-code inside NodeService.NodeStageVolume
+mkfs.ext4 /dev/xvdf                                                        // first time only
+mount /dev/xvdf /var/lib/kubelet/plugins/<driver>/staging/<volid>
+```
+
+This is the first actual mount. After it, there is a usable filesystem
+at the staging path on that node. But it is still not visible to any
+Pod.
+
+Why "stage"? If two Pods on the same node use the same RWX PVC, you do
+not want to mount the volume twice. You stage-mount once globally, then
+bind-mount into each Pod.
+
+**Step 3 - `NodePublishVolume` (per-Pod, bind-mount)**
+
+For each Pod that uses the PVC on this node:
+
+```go
+mount --bind \
+  /var/lib/kubelet/plugins/<driver>/staging/<volid> \
+  /var/lib/kubelet/pods/<pod-uid>/volumes/<vol>/mount
+```
+
+Cheap kernel operation - no I/O, no network, just a new mountpoint
+pointing at the same data. The Pod sees the directory at its expected
+mountpoint.
+
+### 6.2 Why split into three?
+
+Each step exists for a different reason:
+
+- **ControllerPublish** exists because storage backends often have a
+  cluster-level "ownership" concept. EBS can only be attached to one
+  EC2 instance at a time. A SAN LUN has to be added to a host's WWPN
+  allowlist. Azure disks have a `VolumeAttachment` API. These are calls
+  a cluster-wide service must make - kubelet does not have AWS
+  credentials, the controller does.
+
+- **NodeStage** exists because mounting is per-node and per-volume,
+  not per-Pod. When a node restarts, every volume needs to be
+  re-staged. When two Pods share a PVC (RWX), you do not want two
+  mounts.
+
+- **NodePublish** exists because the Pod's target path is per-Pod and
+  ephemeral. Bind-mounts are cheap, so making one per Pod is fine.
+
+Together they answer three orthogonal questions: *Can the node see it?
+-> Is it mounted on the node? -> Is it visible to this Pod?*
+
+Kubernetes deliberately separates these three steps so the same driver
+works for many storage models (block / file, single-attach /
+multi-attach, formatted-once / formatted-each-time, etc.).
+
+### 6.3 What CSSI actually does
+
+| RPC                       | EBS-style driver                | CSSI (NFS)                                                                                                       |
+|---------------------------|---------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `ControllerPublishVolume` | AWS attach API call             | **Skipped** - NFS has no "attach"; `attachRequired: false`                                                       |
+| `NodeStageVolume`         | format + mount block device     | **Optional**: either a no-op, or `mount -t nfs server:/export <staging>` once per node so multiple RWX Pods on the same node share one NFS connection |
+| `NodePublishVolume`       | bind-mount staging -> target    | Either `mount --bind <staging> <pod-target>` (if we staged) **or** mount NFS directly into the Pod target (skip staging entirely) |
+
+For NFS there is a design choice on the node side:
+
+- **No staging** - implement only `NodePublishVolume` and mount NFS
+  directly into each Pod's target dir. Simplest. Each Pod gets its own
+  NFS mount. Fine for low Pod counts.
+
+- **With staging** - implement `NodeStageVolume` to mount NFS once at a
+  node-global path; `NodePublishVolume` does only `mount --bind`. More
+  efficient when many Pods on one node share an RWX PVC.
+
+Either is valid. We advertise which model we support via
+`NodeGetCapabilities` returning (or not returning) `STAGE_UNSTAGE_VOLUME`.
+For an MVP, skipping staging is the easier path.
+
+### 6.4 TL;DR
+
+- `ControllerPublishVolume` makes the volume **reachable** from a node;
+  it does not mount anything. Often a cloud API call. Skipped for NFS.
+- `NodeStageVolume` does the **actual mount on the node**, once, to a
+  shared staging path. Optional for NFS.
+- `NodePublishVolume` makes the staged (or directly-mounted) volume
+  **visible inside a specific Pod's filesystem**. Always required.
