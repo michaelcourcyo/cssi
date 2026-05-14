@@ -4,6 +4,10 @@
 //   - identity.go   : CSI Identity service
 //   - controller.go : CSI Controller service (CreateVolume, snapshots, ...)
 //   - node.go       : CSI Node service (NodePublishVolume mounts the NFS export)
+//
+// For the end-to-end Kubernetes plumbing (driver registration, the
+// PVC -> PV workflow, and how the standard kubernetes-csi sidecars wire
+// up to this driver), see ../../plumbing.md.
 package driver
 
 import (
