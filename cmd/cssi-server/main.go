@@ -12,14 +12,11 @@ import (
 	"github.com/michaelcourcyo/cssi/pkg/server"
 )
 
-// main parses command-line flags, optionally prints the binary version, and starts the CSSI API server.
-// It constructs a server.Config from the flags (listen address, LVM volume group name, and export root),
-// runs the server, and logs and exits with status 1 if the server returns an error.
+// main parses the two server flags (port and vg), then runs the gRPC API.
 func main() {
 	var (
-		listen      = flag.String("listen", ":9000", "Address to listen on for the CSSI API")
-		vgName      = flag.String("vg", "cssi", "LVM Volume Group name")
-		exportRoot  = flag.String("export-root", "/srv/cssi", "Directory under which LV mounts are exported")
+		port        = flag.Int("port", 9000, "TCP port the CSSI gRPC API listens on")
+		vgName      = flag.String("vg", "cssi", "LVM Volume Group name to carve volumes from")
 		showVersion = flag.Bool("version", false, "Print version and exit")
 	)
 	flag.Parse()
@@ -30,9 +27,8 @@ func main() {
 	}
 
 	s := server.New(server.Config{
-		ListenAddr: *listen,
-		VGName:     *vgName,
-		ExportRoot: *exportRoot,
+		Port:   *port,
+		VGName: *vgName,
 	})
 
 	if err := s.Run(); err != nil {

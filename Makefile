@@ -35,6 +35,13 @@ CGO_ENABLED ?= 0
 GO          := go
 GOFLAGS     := -trimpath
 
+# Protobuf / gRPC code generation
+PROTOC          ?= protoc
+PROTO_DIR       := proto
+PROTO_FILES     := $(shell find $(PROTO_DIR) -name '*.proto')
+PROTOC_GEN_GO       := $(shell go env GOPATH)/bin/protoc-gen-go
+PROTOC_GEN_GO_GRPC  := $(shell go env GOPATH)/bin/protoc-gen-go-grpc
+
 .DEFAULT_GOAL := build
 
 # ----------------------------------------------------------------------------
@@ -95,6 +102,26 @@ lint: ## Run golangci-lint (must be installed).
 
 .PHONY: check
 check: fmt vet test ## Run fmt, vet and tests.
+
+# ----------------------------------------------------------------------------
+# Code generation (protobuf + gRPC)
+# ----------------------------------------------------------------------------
+
+.PHONY: generate
+generate: ## Regenerate protobuf + gRPC Go code from $(PROTO_DIR).
+	@command -v $(PROTOC) >/dev/null || { echo "protoc not installed (try: brew install protobuf)"; exit 1; }
+	@test -x $(PROTOC_GEN_GO) || { echo "protoc-gen-go missing; run: make generate-tools"; exit 1; }
+	@test -x $(PROTOC_GEN_GO_GRPC) || { echo "protoc-gen-go-grpc missing; run: make generate-tools"; exit 1; }
+	@echo ">> generating Go stubs from $(PROTO_FILES)"
+	PATH="$$(go env GOPATH)/bin:$$PATH" $(PROTOC) \
+		--go_out=. --go_opt=module=$(MODULE) \
+		--go-grpc_out=. --go-grpc_opt=module=$(MODULE) \
+		$(PROTO_FILES)
+
+.PHONY: generate-tools
+generate-tools: ## Install protoc-gen-go and protoc-gen-go-grpc into $GOPATH/bin.
+	$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	$(GO) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # ----------------------------------------------------------------------------
 # Container images
