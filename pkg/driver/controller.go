@@ -70,15 +70,26 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume: capacity_range.required_bytes must be > 0")
 	}
 
+	// The CSI spec lets fs_type be empty in a mount capability; the
+	// driver picks a default the backend can format.
 	fsType := ""
+	hasMount := false
 	for _, vc := range req.GetVolumeCapabilities() {
-		if m := vc.GetMount(); m != nil && m.GetFsType() != "" {
+		m := vc.GetMount()
+		if m == nil {
+			continue
+		}
+		hasMount = true
+		if m.GetFsType() != "" {
 			fsType = m.GetFsType()
 			break
 		}
 	}
+	if !hasMount {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume: a mount volume_capability is required")
+	}
 	if fsType == "" {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume: a mount volume capability with fs_type is required")
+		fsType = "ext4"
 	}
 
 	host, port, err := parseServerEndpoint(req.GetParameters())
