@@ -19,6 +19,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -84,6 +85,9 @@ func parseUnixEndpoint(ep string) (string, error) {
 	p := strings.TrimPrefix(ep, "unix://")
 	if p == "" {
 		return "", fmt.Errorf("driver: unix endpoint missing path (got %q)", ep)
+	}
+	if !filepath.IsAbs(p) {
+		return "", fmt.Errorf("driver: unix endpoint must be an absolute path (got %q)", ep)
 	}
 	return p, nil
 }
