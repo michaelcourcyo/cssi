@@ -39,8 +39,6 @@ GOFLAGS     := -trimpath
 PROTOC          ?= protoc
 PROTO_DIR       := proto
 PROTO_FILES     := $(shell find $(PROTO_DIR) -name '*.proto')
-PROTOC_GEN_GO       := $(shell go env GOPATH)/bin/protoc-gen-go
-PROTOC_GEN_GO_GRPC  := $(shell go env GOPATH)/bin/protoc-gen-go-grpc
 
 .DEFAULT_GOAL := build
 
@@ -110,10 +108,10 @@ check: fmt vet test ## Run fmt, vet and tests.
 .PHONY: generate
 generate: ## Regenerate protobuf + gRPC Go code from $(PROTO_DIR).
 	@command -v $(PROTOC) >/dev/null || { echo "protoc not installed (try: brew install protobuf)"; exit 1; }
-	@test -x $(PROTOC_GEN_GO) || { echo "protoc-gen-go missing; run: make generate-tools"; exit 1; }
-	@test -x $(PROTOC_GEN_GO_GRPC) || { echo "protoc-gen-go-grpc missing; run: make generate-tools"; exit 1; }
+	@command -v protoc-gen-go >/dev/null || { echo "protoc-gen-go not on PATH; run: make generate-tools (and ensure \$$GOBIN or \$$GOPATH/bin is on PATH)"; exit 1; }
+	@command -v protoc-gen-go-grpc >/dev/null || { echo "protoc-gen-go-grpc not on PATH; run: make generate-tools (and ensure \$$GOBIN or \$$GOPATH/bin is on PATH)"; exit 1; }
 	@echo ">> generating Go stubs from $(PROTO_FILES)"
-	PATH="$$(go env GOPATH)/bin:$$PATH" $(PROTOC) \
+	$(PROTOC) \
 		--go_out=. --go_opt=module=$(MODULE) \
 		--go-grpc_out=. --go-grpc_opt=module=$(MODULE) \
 		$(PROTO_FILES)
