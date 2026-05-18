@@ -63,10 +63,16 @@ func newExternalProvisionerMock(t *testing.T, socketPath string) *externalProvis
 	if err != nil {
 		t.Fatalf("dial driver socket: %v", err)
 	}
-	return &externalProvisionerMock{
+	m := &externalProvisionerMock{
 		conn:   conn,
 		client: csi.NewControllerClient(conn),
 	}
+	t.Cleanup(func() {
+		if err := m.Close(); err != nil {
+			t.Errorf("provisioner.Close: %v", err)
+		}
+	})
+	return m
 }
 
 // ProvisionVolume mirrors what the sidecar does on a PVC event: issue a
@@ -256,7 +262,6 @@ func TestCreateVolume_EndToEnd(t *testing.T) {
 	defer stopDriver()
 
 	provisioner := newExternalProvisionerMock(t, socketPath)
-	defer provisioner.Close()
 
 	req := buildCreateVolumeRequest("pvc-abc123", 1<<30, "ext4", cssiHost, cssiPort)
 
@@ -292,7 +297,6 @@ func TestCreateVolume_EndToEnd_RetryIsIdempotent(t *testing.T) {
 	defer stopDriver()
 
 	provisioner := newExternalProvisionerMock(t, socketPath)
-	defer provisioner.Close()
 
 	req := buildCreateVolumeRequest("pvc-retry", 2<<30, "xfs", cssiHost, cssiPort)
 
@@ -326,7 +330,6 @@ func TestCreateVolume_EndToEnd_ConflictingParamsFail(t *testing.T) {
 	defer stopDriver()
 
 	provisioner := newExternalProvisionerMock(t, socketPath)
-	defer provisioner.Close()
 
 	base := buildCreateVolumeRequest("pvc-conflict", 1<<30, "ext4", cssiHost, cssiPort)
 	if _, err := provisioner.ProvisionVolume(ctx, base); err != nil {
