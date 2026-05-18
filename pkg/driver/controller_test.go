@@ -152,7 +152,8 @@ func (m *fakeLVMManager) callCount() int {
 func startTestCSSIServer(t *testing.T, mgr server.LVMManager, vg string) (host string, port int, stop func()) {
 	t.Helper()
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	lis, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("cssi-server listen: %v", err)
 	}
@@ -198,7 +199,8 @@ func startTestDriver(t *testing.T) (socketPath string, stop func()) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	socketPath = filepath.Join(dir, "csi.sock")
-	lis, err := net.Listen("unix", socketPath)
+	var lc net.ListenConfig
+	lis, err := lc.Listen(t.Context(), "unix", socketPath)
 	if err != nil {
 		t.Fatalf("driver listen on %s: %v", socketPath, err)
 	}
