@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -101,7 +102,11 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "client: %v", err)
 	}
-	defer cli.Close()
+	defer func() {
+		if cerr := cli.Close(); cerr != nil {
+			log.Printf("CreateVolume: closing CSSI client to %s:%d: %v", host, port, cerr)
+		}
+	}()
 
 	res, err := cli.CreateVolume(ctx, name, size, fsType)
 	if err != nil {
