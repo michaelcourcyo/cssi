@@ -15,6 +15,7 @@
 package driver
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -55,7 +56,8 @@ func (d *Driver) Run() error {
 	// A leftover socket file from a previous (crashed) run would make
 	// the bind fail. Remove it; net.Listen will recreate it.
 	_ = os.Remove(sock)
-	lis, err := net.Listen("unix", sock)
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "unix", sock)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", sock, err)
 	}

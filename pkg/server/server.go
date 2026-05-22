@@ -72,7 +72,8 @@ func NewWithLVM(cfg Config, mgr LVMManager) *Server {
 // Run starts the gRPC API listener on cfg.Port and blocks until it exits.
 func (s *Server) Run() error {
 	addr := ":" + strconv.Itoa(s.cfg.Port)
-	lis, err := net.Listen("tcp", addr)
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", addr, err)
 	}
