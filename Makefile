@@ -91,7 +91,7 @@ tidy: ## Run go mod tidy.
 
 .PHONY: test
 test: ## Run unit tests.
-	$(GO) test $(GOFLAGS) -race -coverprofile=coverage.txt -covermode=atomic ./...
+	$(GO) test $(GOFLAGS) -race -coverpkg=./... -coverprofile=coverage.txt -covermode=atomic ./...
 
 .PHONY: lint
 lint: ## Run golangci-lint (must be installed).
