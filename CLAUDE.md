@@ -46,6 +46,38 @@ var lc net.ListenConfig
 lis, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 ```
 
+### `nilerr`: by design in the CSSI server-side RPC, suppress with rationale
+
+`nilerr` flags code that receives a non-nil error and then returns
+`nil` as the function's error value. In `pkg/server/server.go`, that's
+**intentional**: the CSSI gRPC contract distinguishes transport
+failures (returned as a gRPC `error`) from application failures
+(returned as `Success=false` with a `Reason` *inside* the response
+payload). The server translates LVM errors into the payload, so it
+deliberately returns `nil` at the gRPC layer.
+
+Don't rewrite the handler to return a gRPC `status.Errorf` — that
+would break the protocol. Instead suppress `nilerr` with a comment
+that names the protocol reason, so the next reader knows it's design,
+not oversight:
+
+```go
+handle, err := s.lvm.CreateVolume(...)
+if err != nil {
+    //nolint:nilerr // CSSI protocol returns application errors in the payload (Success/Reason), not as gRPC status.
+    return &cssiv1.CreateVolumeResponse{
+        Success: false,
+        Reason:  err.Error(),
+    }, nil
+}
+```
+
+This is the only place this pattern is used today. If you find
+yourself wanting a `nolint:nilerr` outside `pkg/server/`, stop and
+think — the driver side (`pkg/driver/controller.go`) *does* use gRPC
+status codes (`codes.AlreadyExists`, `codes.Internal`) and should
+keep doing so.
+
 ### `errcheck`: don't drop errors from `Close()` and friends
 
 `defer foo.Close()` silently discards the error that `Close` returns,

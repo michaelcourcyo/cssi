@@ -107,6 +107,7 @@ type storageService struct {
 func (s *storageService) CreateVolume(ctx context.Context, req *cssiv1.CreateVolumeRequest) (*cssiv1.CreateVolumeResponse, error) {
 	handle, err := s.lvm.CreateVolume(req.GetName(), req.GetSizeBytes(), req.GetFsType())
 	if err != nil {
+		//nolint:nilerr // CSSI protocol returns application errors in the payload (Success/Reason), not as gRPC status.
 		return &cssiv1.CreateVolumeResponse{
 			Success: false,
 			Reason:  err.Error(),
