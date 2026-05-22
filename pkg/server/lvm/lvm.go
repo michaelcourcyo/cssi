@@ -5,6 +5,7 @@ package lvm
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -67,6 +68,12 @@ func (m *Manager) CreateVolume(name string, sizeBytes int64, fsType string) (str
 
 	lvName := "cssi-" + name
 	handle := m.VG + "/" + lvName
+	if strings.Contains(name, "/") {
+		return "", errors.New("lvm: name must not contain '/'")
+	}
+	if strings.TrimSpace(name) != name {
+		return "", errors.New("lvm: name must not have leading/trailing whitespace")
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
