@@ -63,6 +63,9 @@ func New(cfg Config) *Server {
 // NewWithLVM creates a Server with an explicit LVMManager. Intended for
 // tests that want to substitute the real LVM stack with a fake.
 func NewWithLVM(cfg Config, mgr LVMManager) *Server {
+	if mgr == nil {
+		mgr = lvm.New(cfg.VGName)
+	}
 	return &Server{cfg: cfg, lvm: mgr}
 }
 
