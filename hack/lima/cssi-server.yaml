@@ -24,11 +24,19 @@ additionalDisks:
 - name: "cssi-pv"
   size: "8GiB"
 
-# Mount the developer's home dir read/write so source edits on the Mac
-# appear inside the VM at the same path. Builds and tests run inside.
+# Mount only the repo directory read/write, at the same absolute path
+# inside the VM. The Makefile's `vm-up` target passes the path in via
+# the CSSI_REPO_DIR environment variable (= $(CURDIR), the dir `make`
+# was run from). If you invoke `limactl create` directly, export
+# CSSI_REPO_DIR yourself or this mount will be empty.
 mounts:
-- location: "~"
+- location: "{{ .Env.CSSI_REPO_DIR }}"
   writable: true
+
+# Surface the repo path inside the VM so `cd $CSSI_REPO_DIR` works in
+# any guest shell.
+env:
+  CSSI_REPO_DIR: "{{ .Env.CSSI_REPO_DIR }}"
 
 # The cssi-server listens on :9000 by default; expose it on the host so
 # the cssi-driver (running on the Mac) can dial it.

@@ -151,8 +151,8 @@ LIMA_CONFIG := hack/lima/cssi-server.yaml
 vm-up: ## Create or start the cssi Linux VM (Lima).
 	@command -v limactl >/dev/null || { echo "limactl not installed (try: brew install lima)"; exit 1; }
 	@if ! limactl list -q | grep -qx "$(LIMA_NAME)"; then \
-		echo ">> creating VM $(LIMA_NAME) from $(LIMA_CONFIG)"; \
-		limactl create --name=$(LIMA_NAME) --tty=false $(LIMA_CONFIG); \
+		echo ">> creating VM $(LIMA_NAME) from $(LIMA_CONFIG) (mounting $(CURDIR))"; \
+		CSSI_REPO_DIR=$(CURDIR) limactl create --name=$(LIMA_NAME) --tty=false $(LIMA_CONFIG); \
 	fi
 	limactl start $(LIMA_NAME)
 

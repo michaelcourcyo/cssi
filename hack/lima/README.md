@@ -12,8 +12,11 @@ builds a minimal Ubuntu 24.04 VM with:
 
 - An LVM volume group named `cssi` carved out of an 8 GiB virtual disk.
 - The kernel NFS server running, with `/srv/cssi` as the export root.
-- Your `$HOME` mounted read-write, so the repo on your Mac is the same
-  files you build and run inside the VM — no rsync, no scp.
+- Your repo directory mounted read-write at the same absolute path
+  inside the VM, so source edits on the Mac appear inside the VM
+  immediately — no rsync, no scp. The path is captured at VM creation
+  time from `$(CURDIR)`, the directory you ran `make vm-up` from, and
+  re-exposed inside the VM as the `CSSI_REPO_DIR` env var.
 
 ## Why Lima
 
@@ -49,17 +52,26 @@ created during one session are still there next time you start.
 
 ## Inside the VM
 
-The repo path on the Mac mirrors the path in the VM, so you can `cd`
-to wherever you keep this checkout:
+The repo is mounted at its host absolute path (e.g.
+`/Users/you/.../cssi`) — not under the lima user's `$HOME` — so `cd ~`
+won't take you there. Use `$CSSI_REPO_DIR`, which is set automatically:
 
 ```bash
-cd ~/kasten.io/github/cssi
+cd "$CSSI_REPO_DIR"
 make build-cssi-server
 sudo ./bin/cssi-server --port 9000 --vg cssi
 ```
 
 The VM's `:9000` is port-forwarded to `127.0.0.1:9000` on the host, so
 the `cssi-driver` (running on the Mac) can dial the server directly.
+
+## Moving the repo on the host
+
+The mount path is baked in at `limactl create` time. If you ever move
+the repo to a different host directory, do `make vm-destroy && make
+vm-up` from the new location so the template re-renders with the new
+`$(CURDIR)`. `vm-up` from the old location with the VM still existing
+would just start the VM with the stale mount.
 
 ## Inspecting state
 
