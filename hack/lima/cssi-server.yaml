@@ -1,0 +1,71 @@
+# Lima VM for developing and testing the CSSI server end-to-end
+# against real LVM and a real Linux nfsd. See ./README.md for context.
+#
+# Usage (from the repo root):
+#   make vm-up        # create / start
+#   make vm-shell     # ssh in
+#   make vm-down      # stop, keep state
+#   make vm-destroy   # delete
+
+images:
+- location: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-arm64.img"
+  arch: "aarch64"
+- location: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+  arch: "x86_64"
+
+cpus: 2
+memory: "4GiB"
+disk: "16GiB"
+
+# An extra 8 GiB virtual disk for the LVM volume group. Lives inside
+# Lima's data dir, not on the host filesystem — `make vm-destroy` wipes
+# it cleanly.
+additionalDisks:
+- name: "cssi-pv"
+  size: "8GiB"
+
+# Mount the developer's home dir read/write so source edits on the Mac
+# appear inside the VM at the same path. Builds and tests run inside.
+mounts:
+- location: "~"
+  writable: true
+
+# The cssi-server listens on :9000 by default; expose it on the host so
+# the cssi-driver (running on the Mac) can dial it.
+portForwards:
+- guestPort: 9000
+  hostIP: "127.0.0.1"
+
+provision:
+- mode: system
+  description: install lvm2 and the kernel NFS server
+  script: |
+    #!/bin/sh
+    set -eu
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y lvm2 nfs-kernel-server make
+
+- mode: system
+  description: create the cssi volume group on the extra disk
+  script: |
+    #!/bin/sh
+    set -eu
+    # Lima attaches the extra disk after the root disk; on cloud-image
+    # Ubuntu that's /dev/vdb.
+    if ! vgs cssi >/dev/null 2>&1; then
+      pvcreate -ff -y /dev/vdb
+      vgcreate cssi /dev/vdb
+    fi
+
+- mode: system
+  description: prepare the NFS export root and start nfsd
+  script: |
+    #!/bin/sh
+    set -eu
+    mkdir -p /srv/cssi
+    if ! grep -q '^/srv/cssi ' /etc/exports; then
+      echo '/srv/cssi *(rw,sync,no_subtree_check,no_root_squash,fsid=0)' >> /etc/exports
+    fi
+    systemctl enable --now nfs-kernel-server
+    exportfs -ra

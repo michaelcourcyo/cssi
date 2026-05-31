@@ -139,6 +139,36 @@ $(addprefix docker-,$(BINARIES)): docker-%:
 		.
 
 # ----------------------------------------------------------------------------
+# Local Linux VM for the CSSI server (LVM + nfsd). macOS dev only;
+# Linux CI installs lvm2 + nfs-kernel-server on the runner directly.
+# See hack/lima/README.md.
+# ----------------------------------------------------------------------------
+
+LIMA_NAME   := cssi
+LIMA_CONFIG := hack/lima/cssi-server.yaml
+
+.PHONY: vm-up
+vm-up: ## Create or start the cssi Linux VM (Lima).
+	@command -v limactl >/dev/null || { echo "limactl not installed (try: brew install lima)"; exit 1; }
+	@if ! limactl list -q | grep -qx "$(LIMA_NAME)"; then \
+		echo ">> creating VM $(LIMA_NAME) from $(LIMA_CONFIG)"; \
+		limactl create --name=$(LIMA_NAME) --tty=false $(LIMA_CONFIG); \
+	fi
+	limactl start $(LIMA_NAME)
+
+.PHONY: vm-shell
+vm-shell: ## Open a shell inside the cssi Linux VM.
+	limactl shell $(LIMA_NAME)
+
+.PHONY: vm-down
+vm-down: ## Stop the cssi Linux VM (state is preserved).
+	limactl stop $(LIMA_NAME)
+
+.PHONY: vm-destroy
+vm-destroy: ## Delete the cssi Linux VM (wipes the VG and exports).
+	limactl delete -f $(LIMA_NAME)
+
+# ----------------------------------------------------------------------------
 # Housekeeping
 # ----------------------------------------------------------------------------
 
