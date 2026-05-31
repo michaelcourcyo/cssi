@@ -35,6 +35,11 @@ CGO_ENABLED ?= 0
 GO          := go
 GOFLAGS     := -trimpath
 
+# Protobuf / gRPC code generation
+PROTOC          ?= protoc
+PROTO_DIR       := proto
+PROTO_FILES     := $(shell find $(PROTO_DIR) -name '*.proto')
+
 .DEFAULT_GOAL := build
 
 # ----------------------------------------------------------------------------
@@ -86,7 +91,7 @@ tidy: ## Run go mod tidy.
 
 .PHONY: test
 test: ## Run unit tests.
-	$(GO) test $(GOFLAGS) -race -coverprofile=coverage.txt -covermode=atomic ./...
+	$(GO) test $(GOFLAGS) -race -coverpkg=./... -coverprofile=coverage.txt -covermode=atomic ./...
 
 .PHONY: lint
 lint: ## Run golangci-lint (must be installed).
@@ -95,6 +100,26 @@ lint: ## Run golangci-lint (must be installed).
 
 .PHONY: check
 check: fmt vet test ## Run fmt, vet and tests.
+
+# ----------------------------------------------------------------------------
+# Code generation (protobuf + gRPC)
+# ----------------------------------------------------------------------------
+
+.PHONY: generate
+generate: ## Regenerate protobuf + gRPC Go code from $(PROTO_DIR).
+	@command -v $(PROTOC) >/dev/null || { echo "protoc not installed (try: brew install protobuf)"; exit 1; }
+	@command -v protoc-gen-go >/dev/null || { echo "protoc-gen-go not on PATH; run: make generate-tools (and ensure \$$GOBIN or \$$GOPATH/bin is on PATH)"; exit 1; }
+	@command -v protoc-gen-go-grpc >/dev/null || { echo "protoc-gen-go-grpc not on PATH; run: make generate-tools (and ensure \$$GOBIN or \$$GOPATH/bin is on PATH)"; exit 1; }
+	@echo ">> generating Go stubs from $(PROTO_FILES)"
+	$(PROTOC) \
+		--go_out=. --go_opt=module=$(MODULE) \
+		--go-grpc_out=. --go-grpc_opt=module=$(MODULE) \
+		$(PROTO_FILES)
+
+.PHONY: generate-tools
+generate-tools: ## Install protoc-gen-go and protoc-gen-go-grpc into $GOPATH/bin.
+	$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	$(GO) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # ----------------------------------------------------------------------------
 # Container images

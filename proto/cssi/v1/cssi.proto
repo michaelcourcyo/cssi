@@ -1,0 +1,42 @@
+// CSSI server gRPC API.
+//
+// The CSI driver talks to the CSSI storage server over this service.
+// The server owns one LVM Volume Group on a Linux host; for each request
+// it carves a Logical Volume out of that VG, formats it with the requested
+// filesystem, and returns an opaque volume handle the driver later uses to
+// mount the resulting NFS export.
+syntax = "proto3";
+
+package cssi.v1;
+
+option go_package = "github.com/michaelcourcyo/cssi/pkg/api/v1;cssiv1";
+
+service Storage {
+  // CreateVolume carves a new LV out of the server's volume group,
+  // formats it with the requested filesystem, and exports it.
+  rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
+}
+
+message CreateVolumeRequest {
+  // Stable, caller-chosen identity for the volume. Acts as the
+  // idempotency key: re-issuing CreateVolume with the same name and the
+  // same other fields must return the same volume_handle and success.
+  // Re-issuing with the same name but different fields is a conflict.
+  // The CSI driver forwards the CSI-level volume name here (typically
+  // "pvc-<PVC.UID>"), which is stable across external-provisioner
+  // retries.
+  string name = 1;
+  // Capacity in bytes for the new LV.
+  int64 size_bytes = 2;
+  // Filesystem to create on the LV (e.g. "ext4", "xfs").
+  string fs_type = 3;
+}
+
+message CreateVolumeResponse {
+  // True when the LV was created, formatted, and exported.
+  bool success = 1;
+  // Human-readable failure reason; empty on success.
+  string reason = 2;
+  // Opaque handle the driver later passes back when mounting the volume.
+  string volume_handle = 3;
+}
