@@ -6,6 +6,11 @@
 #   make vm-shell     # ssh in
 #   make vm-down      # stop, keep state
 #   make vm-destroy   # delete
+#
+# The repo mount and CSSI_REPO_DIR env var are injected by the
+# Makefile via `--mount` and `--set` at `limactl create` time, so
+# they don't appear in this file. Don't invoke `limactl create` on
+# this YAML directly — run `make vm-up`.
 
 images:
 - location: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-arm64.img"
@@ -19,24 +24,12 @@ disk: "16GiB"
 
 # An extra 8 GiB virtual disk for the LVM volume group. Lives inside
 # Lima's data dir, not on the host filesystem — `make vm-destroy` wipes
-# it cleanly.
+# it cleanly. `format: false` keeps Lima from auto-partitioning and
+# auto-mounting it as ext4 at /mnt/lima-cssi-pv; we want the raw
+# block device so pvcreate can claim it.
 additionalDisks:
 - name: "cssi-pv"
-  size: "8GiB"
-
-# Mount only the repo directory read/write, at the same absolute path
-# inside the VM. The Makefile's `vm-up` target passes the path in via
-# the CSSI_REPO_DIR environment variable (= $(CURDIR), the dir `make`
-# was run from). If you invoke `limactl create` directly, export
-# CSSI_REPO_DIR yourself or this mount will be empty.
-mounts:
-- location: "{{ .Env.CSSI_REPO_DIR }}"
-  writable: true
-
-# Surface the repo path inside the VM so `cd $CSSI_REPO_DIR` works in
-# any guest shell.
-env:
-  CSSI_REPO_DIR: "{{ .Env.CSSI_REPO_DIR }}"
+  format: false
 
 # The cssi-server listens on :9000 by default; expose it on the host so
 # the cssi-driver (running on the Mac) can dial it.
@@ -45,8 +38,8 @@ portForwards:
   hostIP: "127.0.0.1"
 
 provision:
+# install lvm2 and the kernel NFS server
 - mode: system
-  description: install lvm2 and the kernel NFS server
   script: |
     #!/bin/sh
     set -eu
@@ -54,8 +47,8 @@ provision:
     apt-get update
     apt-get install -y lvm2 nfs-kernel-server make
 
+# create the cssi volume group on the extra disk
 - mode: system
-  description: create the cssi volume group on the extra disk
   script: |
     #!/bin/sh
     set -eu
@@ -66,8 +59,8 @@ provision:
       vgcreate cssi /dev/vdb
     fi
 
+# prepare the export base directory and start nfsd
 - mode: system
-  description: prepare the export base directory and start nfsd
   script: |
     #!/bin/sh
     set -eu

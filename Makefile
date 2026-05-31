@@ -146,13 +146,21 @@ $(addprefix docker-,$(BINARIES)): docker-%:
 
 LIMA_NAME   := cssi
 LIMA_CONFIG := hack/lima/cssi-server.yaml
+LIMA_DISK   := cssi-pv
 
 .PHONY: vm-up
 vm-up: ## Create or start the cssi Linux VM (Lima).
 	@command -v limactl >/dev/null || { echo "limactl not installed (try: brew install lima)"; exit 1; }
+	@if ! limactl disk list -q 2>/dev/null | grep -qx "$(LIMA_DISK)"; then \
+		echo ">> creating Lima disk $(LIMA_DISK) (8GiB) for the LVM volume group"; \
+		limactl disk create $(LIMA_DISK) --size 8GiB; \
+	fi
 	@if ! limactl list -q | grep -qx "$(LIMA_NAME)"; then \
 		echo ">> creating VM $(LIMA_NAME) from $(LIMA_CONFIG) (mounting $(CURDIR))"; \
-		CSSI_REPO_DIR=$(CURDIR) limactl create --name=$(LIMA_NAME) --tty=false $(LIMA_CONFIG); \
+		limactl create --name=$(LIMA_NAME) --tty=false \
+			--mount=$(CURDIR):w \
+			--set='.env.CSSI_REPO_DIR = "$(CURDIR)"' \
+			$(LIMA_CONFIG); \
 	fi
 	limactl start $(LIMA_NAME)
 
@@ -165,8 +173,9 @@ vm-down: ## Stop the cssi Linux VM (state is preserved).
 	limactl stop $(LIMA_NAME)
 
 .PHONY: vm-destroy
-vm-destroy: ## Delete the cssi Linux VM (wipes the VG and exports).
-	limactl delete -f $(LIMA_NAME)
+vm-destroy: ## Delete the cssi Linux VM and its LVM-backing disk.
+	-limactl delete -f $(LIMA_NAME)
+	-limactl disk delete $(LIMA_DISK)
 
 # ----------------------------------------------------------------------------
 # Housekeeping

@@ -67,11 +67,13 @@ the `cssi-driver` (running on the Mac) can dial the server directly.
 
 ## Moving the repo on the host
 
-The mount path is baked in at `limactl create` time. If you ever move
-the repo to a different host directory, do `make vm-destroy && make
-vm-up` from the new location so the template re-renders with the new
-`$(CURDIR)`. `vm-up` from the old location with the VM still existing
-would just start the VM with the stale mount.
+The mount path is baked in at `limactl create` time (the Makefile
+passes `--mount=$(CURDIR):w` and `--set='.env.CSSI_REPO_DIR=...'` to
+`limactl create`, both resolved to the directory you ran `make` from).
+If you ever move the repo to a different host directory, do `make
+vm-destroy && make vm-up` from the new location so the new path gets
+re-injected. Running `vm-up` from the old location with the VM still
+existing would just start it with the stale mount.
 
 ## Inspecting state
 
