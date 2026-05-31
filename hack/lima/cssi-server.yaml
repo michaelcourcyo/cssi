@@ -67,13 +67,12 @@ provision:
     fi
 
 - mode: system
-  description: prepare the NFS export root and start nfsd
+  description: prepare the export base directory and start nfsd
   script: |
     #!/bin/sh
     set -eu
+    # The cssi-server creates one mount + one /etc/exports entry per
+    # LV at runtime, so the bootstrap only has to make the base
+    # directory exist and ensure nfsd is up and ready to reload.
     mkdir -p /srv/cssi
-    if ! grep -q '^/srv/cssi ' /etc/exports; then
-      echo '/srv/cssi *(rw,sync,no_subtree_check,no_root_squash,fsid=0)' >> /etc/exports
-    fi
     systemctl enable --now nfs-kernel-server
-    exportfs -ra
