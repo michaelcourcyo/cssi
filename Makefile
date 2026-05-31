@@ -151,7 +151,7 @@ LIMA_DISK   := cssi-pv
 .PHONY: vm-up
 vm-up: ## Create or start the cssi Linux VM (Lima).
 	@command -v limactl >/dev/null || { echo "limactl not installed (try: brew install lima)"; exit 1; }
-	@if ! limactl disk list -q 2>/dev/null | grep -qx "$(LIMA_DISK)"; then \
+	@if [ ! -d "$$HOME/.lima/_disks/$(LIMA_DISK)" ]; then \
 		echo ">> creating Lima disk $(LIMA_DISK) (8GiB) for the LVM volume group"; \
 		limactl disk create $(LIMA_DISK) --size 8GiB; \
 	fi
